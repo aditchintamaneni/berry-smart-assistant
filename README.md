@@ -1,28 +1,72 @@
-# Jarvis, the Berry Smart Assistant!
+# Meet the Berry Smart Assistant!
 
-A high-performance voice AI assistant optimized for edge deployment on a Raspberry Pi 5 (4GB RAM). Achieves <2.5 second response latency through carefully engineered architecture. All interactions are processed fully on-device. 
+A high-performance voice AI assistant optimized for edge deployment on a Raspberry Pi 5 (4GB RAM). Runs entirely on-device (no cloud) and achieves ~2.5 second response latency.
+
+## What it does
+
+1. wakes up on "Hey Jarvis" using OpenWakeWord
+2. listens to you via faster-whisper (Speech-to-Text)
+3. thinks via Gemma3:1B running locally through Ollama
+4. speaks response via Piper (Text-to-Speech)
+
+## What makes it fast
+
+Under the hood, responses stream token-by-token and are spoken sentence-by-sentence, significantly reducing perceived latency. The system is fully multithreaded: wake word detection, the conversation pipeline, timer monitoring, and interrupt detection all run concurrently.
 
 ## Features
+* you can interrupt Jarvis mid-response. It dynamically adjusts voice activity detection based on ambient noise, so it works in any environment.
+* handles timers and alarms with regex parsing that accounts for faster-whisper transcription quirks
+* maintains up to 3 conversation turns per interaction so dialogue feels natural
+* custom Timer class (decorator and context manager) for logging latency across each pipeline stage
 
-### Core Capabilities
-- **Wake Word Detection**: "Hey Jarvis" detection using OpenWakeWord.
-- **Context-Aware Conversation**: Jarvis maintains up to 3 conversation turns per interaction.
-- **Timers and Alarms**: Jarvis supports natural language input for setting timers and alarms. A background thread monitors and announces time-based events.
-- **Interrupt Handling**: Real-time audio monitoring during Text-to-Speech (TTS) playback enables users to interrupt Jarvis mid-response.
+## Tech Stack
+| Component | Tool |
+|---|---|
+| Speech-to-Text | faster-whisper (tiny.en) |
+| Language model | Gemma3:1B (quantized) via Ollama |
+| Text-to-Speech | Piper TTS |
+| Wake word | OpenWakeWord |
+| Audio capture | PyAudio (16kHz mono) |
+| Concurrency | Python threading with Events and Locks |
 
-## Key Technical Achievements
-- **Streaming Responses**: SLM tokens are processed into complete sentences and spoken incrementally, significantly reducing perceived latency.
-- **Multithreaded Architecture**: Thread-safe concurrent execution of main pipeline, wake word detection, timer monitoring, and interrupt detection.
-- **Adaptive Interrupt Detection**: Dynamic threshold calculation based on ambient noise sampling during TTS playback. Suitable for varying acoustic environments. 
-- **Robust NLP for Timers/Alarms**: Complex expressions (eg "1 hour and 30 minutes") and faster-whisper transcription inconsistencies are parsed and accounted for through regex.
+## Setup
 
-## Performance Monitoring
+**Prereqs:**
+- Raspberry Pi 5 (4GB+ RAM) or any Linux machine
+- USB speakerphone (or separate mic + speaker)
+- Python 3.11+
 
-Wrote a custom Timer class for granular performance profiling of each pipeline stage, enabling iterative performance analysis and optimization.
+**Install dependencies:**
+```bash
+sudo apt update && sudo apt install -y portaudio19-dev
+pip install -r requirements.txt
+```
 
-## Technical Stack
-- **Speech-to-Text (STT)**: faster-whisper (optimized settings for Pi)
-- **Small Language Model (SLM)**: Gemma3:1B (quantized)
-- **Text-to-Speech (TTS)**: Piper TTS
-- **Audio Processing**: PyAudio (16kHz mono capture)
-- **Concurrency**: Python threading using Events and Locks for synchronization
+**Install Ollama and pull the model:**
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull gemma3:1b-it-qat
+```
+
+**Install Piper TTS:**
+```bash
+pip install piper-tts
+```
+
+**Download a Piper voice:**
+```bash
+mkdir -p voices
+# download from https://github.com/rhasspy/piper/blob/master/VOICES.md
+# place the .onnx and .onnx.json files in the voices/ directory
+# default voice: en_US-amy-low.onnx
+```
+
+## Usage
+
+```bash
+# continuous conversation mode (default)
+python main.py
+
+# wake word mode — waits for "Hey Jarvis" before listening
+python main.py --wake-word
+```
